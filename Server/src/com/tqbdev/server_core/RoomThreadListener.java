@@ -1,3 +1,4 @@
+package com.tqbdev.server_core;
 import java.net.Socket;
 
 public interface RoomThreadListener {

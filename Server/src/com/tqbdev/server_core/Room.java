@@ -1,3 +1,4 @@
+package com.tqbdev.server_core;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -5,21 +6,29 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.Socket;
 import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.CopyOnWriteArraySet;
+
+import com.tqbdev.game_core.Game;
+import com.tqbdev.snake_core.Snake_Player;
 
 public class Room implements Runnable {
 	private Socket[] clientSockets = { null, null, null, null };
+	private Socket hostSocket = null;
 	private String roomCode = null;
-	
+
 	private long lastTime = 0;
 	private long nowTime = 0;
-	
+
+	private int fps = 1;
+	private Game game = null;
+
 	private final Set<RoomThreadListener> listeners = new CopyOnWriteArraySet<RoomThreadListener>();
 
 	public Room(Socket hostSocket) {
+		this.hostSocket = hostSocket;
 		this.clientSockets[0] = hostSocket;
+		game = new Game(20, 20);
+		game.addSnake();
 	}
 	
 	public final void addListener(final RoomThreadListener listener) {
@@ -35,21 +44,30 @@ public class Room implements Runnable {
 			listener.destroyRoom(this);
 		}
 	}
-	
+
 	private void playerLeaveRoom(final Socket clientSocket) {
 		for (RoomThreadListener listener : listeners) {
 			listener.playerLeaveRoom(clientSocket);
 		}
 	}
-	
+
 	public void setRoomCode(String roomCode) {
 		this.roomCode = roomCode;
+	}
+	
+	public String getRoomCode() {
+		return this.roomCode;
+	}
+	
+	public boolean isPlaying() {
+		return game.isPlaying();
 	}
 
 	public boolean addPlayer(Socket playerSocket) {
 		for (int i = 0; i < this.clientSockets.length; i++) {
 			if (this.clientSockets[i] == null) {
 				this.clientSockets[i] = playerSocket;
+				game.addSnake();
 				return true;
 			} else {
 				if (this.clientSockets[i].equals(playerSocket)) {
@@ -66,7 +84,7 @@ public class Room implements Runnable {
 		while (true) {
 			nowTime = System.currentTimeMillis();
 
-			if (nowTime - lastTime > 1000) {
+			if (nowTime - lastTime > (1000 / (double) fps)) {
 				lastTime = nowTime;
 
 				int index = -1;
@@ -79,11 +97,13 @@ public class Room implements Runnable {
 							out.flush();
 						}
 					}
+					
+					game.move();
 				} catch (IOException e) {
 					try {
 						if (index > -1 && index < clientSockets.length) {
 							Socket socket = clientSockets[index];
-							socket.close();	
+							socket.close();
 							clientSockets[index] = null;
 							playerLeaveRoom(socket);
 						}
@@ -113,7 +133,7 @@ public class Room implements Runnable {
 								}
 							}
 						}
-						
+
 						return;
 					}
 
