@@ -1,3 +1,5 @@
+package com.tqbdev.server_core;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -11,7 +13,7 @@ public class server {
 
 	private static HashMap<String, Runnable> Rooms = null;
 	private static Set<Thread> PlayerThreads = null;
-	private static Set<Socket> PlayerInGame = null;
+	private static Set<Socket> PlayerInRoom = null;
 	private static final RandomString ran = new RandomString(4);
 
 	@SuppressWarnings("resource")
@@ -21,7 +23,7 @@ public class server {
 
 		Rooms = new HashMap<>();
 		PlayerThreads = new HashSet<>();
-		PlayerInGame = new HashSet<>();
+		PlayerInRoom = new HashSet<>();
 
 		try {
 			serverSocket = new ServerSocket(PORT);
@@ -45,26 +47,31 @@ public class server {
 
 					@Override
 					public void joinRoom(Socket clientSocket, String codeRoom) {
-						if (PlayerInGame.contains(clientSocket)) {
+						if (PlayerInRoom.contains(clientSocket)) {
 
 						} else {
 							// Check codeRoom exist?
 							if (Rooms.containsKey(codeRoom)) {
 								Room room = (Room) Rooms.get(codeRoom);
-								room.addPlayer(clientSocket);
-								room.addListener(new RoomThreadListener() {
-									
-									@Override
-									public void playerLeaveRoom(Socket clientSocket) {
-										PlayerInGame.remove(clientSocket);										
-									}
-									
-									@Override
-									public void destroyRoom(Room room) {
-										Rooms.remove(room);										
-									}
-								});
-								PlayerInGame.add(clientSocket);
+
+								if (room.isPlaying()) {
+
+								} else {
+									room.addPlayer(clientSocket);
+									room.addListener(new RoomThreadListener() {
+
+										@Override
+										public void playerLeaveRoom(Socket clientSocket) {
+											PlayerInRoom.remove(clientSocket);
+										}
+
+										@Override
+										public void destroyRoom(Room room) {
+											Rooms.remove((Object) room);
+										}
+									});
+									PlayerInRoom.add(clientSocket);
+								}
 							} else {
 								// Thong bao cho user
 								try {
@@ -79,14 +86,13 @@ public class server {
 
 					@Override
 					public void createRoom(Socket clientSocket) {
-						// Generate room code
 						String roomCode = null;
 
 						do {
 							roomCode = ran.nextString();
 						} while (Rooms.containsKey(roomCode));
 
-						if (PlayerInGame.contains(clientSocket)) {
+						if (PlayerInRoom.contains(clientSocket)) {
 
 						} else {
 							Room client = new Room(clientSocket);
@@ -94,8 +100,8 @@ public class server {
 							Rooms.put(roomCode, client);
 							Thread t = new Thread(client);
 							t.start();
-							PlayerInGame.add(clientSocket);
-							
+							PlayerInRoom.add(clientSocket);
+
 							System.out.println("CREATE room code: " + roomCode);
 						}
 					}
