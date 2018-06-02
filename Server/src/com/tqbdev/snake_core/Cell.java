@@ -1,15 +1,15 @@
 package com.tqbdev.snake_core;
 
 public class Cell {
-	private State state;
+	private StateCell state;
 	private int row;
 	private int col;
 	
 	public Cell() {
-		state = State.EMPTY;
+		state = StateCell.EMPTY;
 	}
 	
-	public void changeState(State state) {
+	public void changeState(StateCell state) {
 		this.state = state;
 	}
 
@@ -29,7 +29,7 @@ public class Cell {
 		this.col = col;
 	}
 
-	public State getState() {
+	public StateCell getState() {
 		return state;
 	}
 }

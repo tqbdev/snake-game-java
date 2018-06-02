@@ -5,7 +5,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-public class Snake {
+import com.tqbdev.server_core.PlayerListener;
+
+public class Snake implements PlayerListener {
 	private Cell head;
 	private List<Cell> tail;
 
@@ -18,8 +20,8 @@ public class Snake {
 	private Cell[][] boardGame;
 
 	private Snake_Player snakePlayer;
-	private State stateTail;
-	private State stateHead;
+	private StateCell stateTail;
+	private StateCell stateHead;
 
 	private int point;
 
@@ -58,11 +60,11 @@ public class Snake {
 	}
 
 	public void clearSnake() {
-		head.changeState(State.EMPTY);
+		head.changeState(StateCell.EMPTY);
 		
 		for (int i = 0; i < tail.size(); i++) {
 			Cell cell = tail.get(i);
-			cell.changeState(State.EMPTY);
+			cell.changeState(StateCell.EMPTY);
 		}
 	}
 	
@@ -77,20 +79,20 @@ public class Snake {
 	private void setState() {
 		switch (this.snakePlayer) {
 		case Snake_One:
-			stateTail = State.TAIL1;
-			stateHead = State.HEAD1;
+			stateTail = StateCell.TAIL1;
+			stateHead = StateCell.HEAD1;
 			break;
 		case Snake_Two:
-			stateTail = State.TAIL2;
-			stateHead = State.HEAD2;
+			stateTail = StateCell.TAIL2;
+			stateHead = StateCell.HEAD2;
 			break;
 		case Snake_Three:
-			stateTail = State.TAIL3;
-			stateHead = State.HEAD3;
+			stateTail = StateCell.TAIL3;
+			stateHead = StateCell.HEAD3;
 			break;
 		case Snake_Four:
-			stateTail = State.TAIL4;
-			stateHead = State.HEAD4;
+			stateTail = StateCell.TAIL4;
+			stateHead = StateCell.HEAD4;
 			break;
 		}
 	}
@@ -104,13 +106,13 @@ public class Snake {
 
 		final Cell newHead = getFromDirection(head, currentDir);
 
-		if (!newHead.getState().equals(State.EMPTY) && !newHead.getState().equals(State.FOOD)) {
+		if (!newHead.getState().equals(StateCell.EMPTY) && !newHead.getState().equals(StateCell.FOOD)) {
 			collision();
 			return;
 		}
 
 		boolean snakeWillGrow = false;
-		if (newHead.getState().equals(State.FOOD)) {
+		if (newHead.getState().equals(StateCell.FOOD)) {
 			snakeWillGrow = true;
 		}
 
@@ -130,7 +132,7 @@ public class Snake {
 			point++;
 			eatFood();
 		} else {
-			lastField.changeState(State.EMPTY);
+			lastField.changeState(StateCell.EMPTY);
 		}
 
 		setHead(newHead);
@@ -139,6 +141,7 @@ public class Snake {
 				"Snake: " + snakePlayer.ordinal() + " - row: " + newHead.getRow() + " - col: " + newHead.getCol());
 	}
 
+	@Override
 	public void changeDirection(final Direction newDir) {
 		if (!newDir.isSameOrientation(currentDir)) {
 			nextDir = newDir;
