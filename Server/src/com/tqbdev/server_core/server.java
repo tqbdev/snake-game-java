@@ -23,15 +23,15 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 		RoomThreads = new HashMap<>();
 		ClientThreads = new HashSet<>();
 	}
-	
+
 	public void run() throws IOException {
 		serverSocket = new ServerSocket(PORT);
-		
+
 		Socket socket = null;
-		
+
 		while (true) {
 			socket = serverSocket.accept();
-			
+
 			ClientThread clientThread = new ClientThread(socket);
 			clientThread.addConnectionListener(this);
 			clientThread.addDoneListener(this);
@@ -39,7 +39,7 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 			ClientThreads.add(clientThread);
 		}
 	}
-	
+
 	private void sendMessage(ClientThread clientThread, String control, String mess) {
 		clientThread.send(control + mess + "\r\n");
 	}
@@ -57,8 +57,11 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 		do {
 			roomCode = ranRoomCode.nextString();
 		} while (RoomThreads.containsKey(roomCode));
-		
+
 		if (!thread.isInRoom()) {
+			// SEND OK + Roomcode
+			sendMessage(thread, "OK", roomCode);
+			
 			Room room = new Room(thread);
 			thread.setInRoom(true);
 			room.addListener(this);
@@ -67,8 +70,6 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 			room.start();
 
 			System.out.println("CREATE room code: " + roomCode);
-			// SEND OK + Roomcode
-			sendMessage(thread, "OK", roomCode);
 		} else {
 			// SEND ER + Message
 			sendMessage(thread, "ER", "You are in room.");
@@ -85,23 +86,23 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 					// ER
 					sendMessage(thread, "ER", "This room is playing.");
 				} else {
-					room.addPlayer(thread);
-					thread.setInRoom(true);
 					// OK
 					sendMessage(thread, "OK", "");
+					room.addPlayer(thread);
+					thread.setInRoom(true);
 				}
 			} else {
 				// ER
 				sendMessage(thread, "ER", "Room code is invalid.");
 			}
-		}		
+		}
 	}
 
 	@Override
 	public void destroyRoom(Thread thread) {
 		Room room = (Room) thread;
 		RoomThreads.remove(room.getRoomCode());
-		
+
 		System.out.println("DESTROY ROOM: " + room.getRoomCode());
 	}
 
@@ -110,7 +111,7 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 		if (thread.isInRoom()) {
 			thread.setInRoom(false);
 			thread.setHost(false);
-			
+
 			// Notify to Room
 			// Same threadComplete
 		}
