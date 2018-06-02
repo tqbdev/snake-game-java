@@ -4,25 +4,31 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import com.tqbdev.server_core.ClientThread;
 import com.tqbdev.snake_core.Cell;
 import com.tqbdev.snake_core.Snake;
 import com.tqbdev.snake_core.SnakeListener;
 import com.tqbdev.snake_core.Snake_Player;
-import com.tqbdev.snake_core.State;
+import com.tqbdev.snake_core.StateCell;
 
-public class Game implements SnakeListener {
+public class Game extends Thread implements SnakeListener {
 	private Cell[][] boardGame = null;
 	private int height;
 	private int width;
 
 	private Snake[] snakes = { null, null, null, null };
 	private Snake_Player currentSnakePlayer = Snake_Player.Snake_One;
-	
+
+	private ClientThread[] clientThreads = null;
+
 	private boolean isPlaying;
-	
+
 	private int totalPoint;
 	private int maxPoint;
 	
+	private boolean endGame = false;
+
+	// Game Listener
 	private final Set<GameListener> listeners = new CopyOnWriteArraySet<GameListener>();
 
 	public final void addListener(final GameListener listener) {
@@ -32,28 +38,24 @@ public class Game implements SnakeListener {
 	public final void removeListener(final GameListener listener) {
 		listeners.remove(listener);
 	}
-	
+
 	private final void endGame() {
+		endGame = true;
 		for (GameListener listener : listeners) {
 			listener.endGame();
 		}
 	}
-	
-	private final void collisionInGame(Snake_Player snakePlayer) {
-		for (GameListener listener : listeners) {
-			listener.collisionInGame(snakePlayer);
-		}
-	}
+	//
 
 	public Game(int height, int width) {
 		this.height = height;
 		this.width = width;
 
-		isPlaying = false;
 		init();
 	}
 
 	private void init() {
+		isPlaying = false;
 		maxPoint = height * width;
 		totalPoint = 0;
 		this.boardGame = new Cell[height][width];
@@ -67,35 +69,46 @@ public class Game implements SnakeListener {
 		}
 	}
 
-	public boolean addSnake() {
-		switch (currentSnakePlayer) {
-		case Snake_One:
-		case Snake_Two:
-		case Snake_Three:
-		case Snake_Four:
-			int index = currentSnakePlayer.ordinal();
-			if (snakes[index] == null) {
-				snakes[index] = new Snake(this.boardGame, currentSnakePlayer);
-				snakes[index].addListener(this);
+	public void setPlayerThreads(ClientThread[] clientThreads) {
+		this.clientThreads = clientThreads;
+	}
+
+	public void newGame() {
+		isPlaying = false;
+		init();
+		initSnake();
+	}
+
+	public void initSnake() {
+		for (int i = 0; i < clientThreads.length; i++) {
+			ClientThread clientThread = clientThreads[i];
+
+			if (clientThread != null) {
+				Snake snake = new Snake(boardGame, currentSnakePlayer);
 				currentSnakePlayer = currentSnakePlayer.next();
-				return true;
-			} else {
-				return false;
+				snake.addListener(this);
+				snakes[i] = snake;
+
+				clientThread.addPlayerListener(snake);
 			}
-		default:
-			return false;
 		}
+	}
+
+	public void beginGame() {
+		isPlaying = true;
+	}
+	
+	public void hostEndGame() {
+		isPlaying = false;
+		endGame = true;
+		// Send message to client
 	}
 
 	public boolean removeSnake(Snake_Player player) {
 		return true;
 	}
 
-	public boolean move() {
-		if (isPlaying == false) {
-			return false;
-		}
-
+	public void move() {
 		for (int i = 0; i < snakes.length; i++) {
 			Snake snake = snakes[i];
 
@@ -103,8 +116,6 @@ public class Game implements SnakeListener {
 				snake.move();
 			}
 		}
-
-		return true;
 	}
 
 	public Cell[][] getBoardGame() {
@@ -115,10 +126,6 @@ public class Game implements SnakeListener {
 		return isPlaying;
 	}
 
-	public void setPlaying(boolean isPlaying) {
-		this.isPlaying = isPlaying;
-	}
-
 	private void generateFood() {
 		Random rand = new Random();
 		Cell cell = null;
@@ -126,9 +133,9 @@ public class Game implements SnakeListener {
 			int row = rand.nextInt(height);
 			int col = rand.nextInt(width);
 			cell = boardGame[row][col];
-		} while (cell == null || !cell.getState().equals(State.EMPTY));
-		
-		cell.changeState(State.FOOD);
+		} while (cell == null || !cell.getState().equals(StateCell.EMPTY));
+
+		cell.changeState(StateCell.FOOD);
 	}
 
 	@Override
@@ -137,9 +144,11 @@ public class Game implements SnakeListener {
 		if (totalPoint >= maxPoint) {
 			isPlaying = false;
 			endGame();
+			
+			// send message Done
 			return;
 		}
-		
+
 		generateFood();
 	}
 
@@ -149,8 +158,36 @@ public class Game implements SnakeListener {
 		if (snake != null) {
 			snake.clearSnake();
 		}
+		
+		clientThreads[snakePlayer.ordinal()] = null;
 		// TODO Delete snake and wait or leave room if have others playing
 		// else new game or leave room
-		collisionInGame(snakePlayer);
+
+		// send message Done
+
+	}
+
+	private long lastTime = 0;
+	private long nowTime = 0;
+
+	private int fps = 1;
+
+	public void run() {
+		while (true) {
+			if (isPlaying) {
+				nowTime = System.currentTimeMillis();
+
+				if (nowTime - lastTime > (1000 / (double) fps)) {
+					lastTime = nowTime;
+					move();
+
+					// send information to client
+				}
+			}
+			
+			if (endGame) {
+				break;
+			}
+		}
 	}
 }

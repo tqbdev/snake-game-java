@@ -7,110 +7,112 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
-public class server {
+import com.tqbdev.utils.RandomString;
 
-	static final int PORT = 5000;
+public class Server implements ConnectionListener, RoomListener, DoneListener {
+	private int PORT = 5000;
 
-	private static HashMap<String, Runnable> Rooms = null;
-	private static Set<Thread> PlayerThreads = null;
-	private static Set<Socket> PlayerInRoom = null;
-	private static final RandomString ran = new RandomString(4);
+	private ServerSocket serverSocket = null;
 
-	@SuppressWarnings("resource")
-	public static void main(String[] args) {
-		ServerSocket serverSocket = null;
+	private static HashMap<String, Thread> RoomThreads = null;
+	private static Set<Thread> ClientThreads = null;
+
+	private static final RandomString ranRoomCode = new RandomString(4);
+
+	public Server() {
+		RoomThreads = new HashMap<>();
+		ClientThreads = new HashSet<>();
+	}
+	
+	public void run() throws IOException {
+		serverSocket = new ServerSocket(PORT);
+		
 		Socket socket = null;
-
-		Rooms = new HashMap<>();
-		PlayerThreads = new HashSet<>();
-		PlayerInRoom = new HashSet<>();
-
-		try {
-			serverSocket = new ServerSocket(PORT);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-
+		
 		while (true) {
-			try {
-				socket = serverSocket.accept();
+			socket = serverSocket.accept();
+			
+			ClientThread clientThread = new ClientThread(socket);
+			clientThread.addConnectionListener(this);
+			clientThread.addDoneListener(this);
+			clientThread.start();
+			ClientThreads.add(clientThread);
+		}
+	}
+	
+	private void sendMessage(ClientThread clientThread, String control, String mess) {
+		clientThread.send(control + mess + "\r\n");
+	}
 
-				ClientThread c = new ClientThread(socket);
-				c.addListener(new ClientThreadListener() {
+	@Override
+	public void threadComplete(ClientThread thread) {
+		System.out.println("thread Complete");
+		ClientThreads.remove(thread);
+	}
 
-					@Override
-					public void notifyOfThreadComplete(Thread thread) {
-						System.out.println(PlayerThreads.size());
-						PlayerThreads.remove(thread);
-						System.out.println(PlayerThreads.size());
-					}
+	@Override
+	public void createRoom(ClientThread thread) {
+		String roomCode = null;
 
-					@Override
-					public void joinRoom(Socket clientSocket, String codeRoom) {
-						if (PlayerInRoom.contains(clientSocket)) {
+		do {
+			roomCode = ranRoomCode.nextString();
+		} while (RoomThreads.containsKey(roomCode));
+		
+		if (!thread.isInRoom()) {
+			Room room = new Room(thread);
+			thread.setInRoom(true);
+			room.addListener(this);
+			room.setRoomCode(roomCode);
+			RoomThreads.put(roomCode, room);
+			room.start();
 
-						} else {
-							// Check codeRoom exist?
-							if (Rooms.containsKey(codeRoom)) {
-								Room room = (Room) Rooms.get(codeRoom);
+			System.out.println("CREATE room code: " + roomCode);
+			// SEND OK + Roomcode
+			sendMessage(thread, "OK", roomCode);
+		} else {
+			// SEND ER + Message
+			sendMessage(thread, "ER", "You are in room.");
+		}
+	}
 
-								if (room.isPlaying()) {
+	@Override
+	public void joinRoom(ClientThread thread, String codeRoom) {
+		if (!thread.isInRoom()) {
+			if (RoomThreads.containsKey(codeRoom)) {
+				Room room = (Room) RoomThreads.get(codeRoom);
 
-								} else {
-									room.addPlayer(clientSocket);
-									room.addListener(new RoomThreadListener() {
-
-										@Override
-										public void playerLeaveRoom(Socket clientSocket) {
-											PlayerInRoom.remove(clientSocket);
-										}
-
-										@Override
-										public void destroyRoom(Room room) {
-											Rooms.remove((Object) room);
-										}
-									});
-									PlayerInRoom.add(clientSocket);
-								}
-							} else {
-								// Thong bao cho user
-								try {
-									clientSocket.close();
-								} catch (IOException e) {
-									// TODO Auto-generated catch block
-									e.printStackTrace();
-								}
-							}
-						}
-					}
-
-					@Override
-					public void createRoom(Socket clientSocket) {
-						String roomCode = null;
-
-						do {
-							roomCode = ran.nextString();
-						} while (Rooms.containsKey(roomCode));
-
-						if (PlayerInRoom.contains(clientSocket)) {
-
-						} else {
-							Room client = new Room(clientSocket);
-							client.setRoomCode(roomCode);
-							Rooms.put(roomCode, client);
-							Thread t = new Thread(client);
-							t.start();
-							PlayerInRoom.add(clientSocket);
-
-							System.out.println("CREATE room code: " + roomCode);
-						}
-					}
-				});
-				c.start();
-				PlayerThreads.add(c);
-			} catch (Exception e) {
-				System.out.println("I/O error: " + e.getMessage());
+				if (room.isPlaying()) {
+					// ER
+					sendMessage(thread, "ER", "This room is playing.");
+				} else {
+					room.addPlayer(thread);
+					thread.setInRoom(true);
+					// OK
+					sendMessage(thread, "OK", "");
+				}
+			} else {
+				// ER
+				sendMessage(thread, "ER", "Room code is invalid.");
 			}
+		}		
+	}
+
+	@Override
+	public void destroyRoom(Thread thread) {
+		Room room = (Room) thread;
+		RoomThreads.remove(room.getRoomCode());
+		
+		System.out.println("DESTROY ROOM: " + room.getRoomCode());
+	}
+
+	@Override
+	public void leaveRoom(ClientThread thread) {
+		if (thread.isInRoom()) {
+			thread.setInRoom(false);
+			thread.setHost(false);
+			
+			// Notify to Room
+			// Same threadComplete
 		}
 	}
 }

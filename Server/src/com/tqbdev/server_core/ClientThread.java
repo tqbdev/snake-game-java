@@ -1,4 +1,5 @@
 package com.tqbdev.server_core;
+
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -7,84 +8,230 @@ import java.net.Socket;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+import com.tqbdev.snake_core.Direction;
+
 public class ClientThread extends Thread {
 	private Socket socket;
+	private boolean isHost;
+	private boolean isInRoom;
+	private boolean isSnakeDead;
+	
+	// Listener Player
+	private final Set<PlayerListener> playerListeners = new CopyOnWriteArraySet<PlayerListener>();
 
-	private final Set<ClientThreadListener> listeners = new CopyOnWriteArraySet<ClientThreadListener>();
-
-	public final void addListener(final ClientThreadListener listener) {
-		listeners.add(listener);
+	public final void addPlayerListener(final PlayerListener listener) {
+		playerListeners.add(listener);
 	}
 
-	public final void removeListener(final ClientThreadListener listener) {
-		listeners.remove(listener);
+	public final void removePlayerListener(final PlayerListener listener) {
+		playerListeners.remove(listener);
 	}
 
-	private final void notifyListeners() {
-		for (ClientThreadListener listener : listeners) {
-			listener.notifyOfThreadComplete(this);
+	private void changeDirection(Direction direction) {
+		for (PlayerListener playerInputListener : playerListeners) {
+			playerInputListener.changeDirection(direction);
+		}
+	}
+	//
+	
+	// Listener Host
+	private final Set<HostListener> hostListeners = new CopyOnWriteArraySet<HostListener>();
+
+	public final void addHostListener(final HostListener listener) {
+		hostListeners.add(listener);
+	}
+
+	public final void removeHostListener(final HostListener listener) {
+		hostListeners.remove(listener);
+	}
+
+	private void startGame() {
+		if (isHost) {
+			for (HostListener hostInputListener : hostListeners) {
+				hostInputListener.startGame();
+			}
+		}
+	}
+
+	private void stopGame() {
+		if (isHost) {
+			for (HostListener hostInputListener : hostListeners) {
+				hostInputListener.stopGame();
+			}
+		}
+	}
+	//
+	
+	// Listener Connection
+	private final Set<ConnectionListener> connectionListeners = new CopyOnWriteArraySet<ConnectionListener>();
+
+	public final void addConnectionListener(final ConnectionListener listener) {
+		connectionListeners.add(listener);
+	}
+
+	public final void removeConnectionListener(final ConnectionListener listener) {
+		connectionListeners.remove(listener);
+	}
+	
+	private void createRoom() {
+		for (ConnectionListener connectionListener : connectionListeners) {
+			connectionListener.createRoom(this);
 		}
 	}
 	
-	private final void createRoom() {
-		for (ClientThreadListener listener : listeners) {
-			listener.createRoom(socket);
+	private void joinRoom(final String codeRoom) {
+		for (ConnectionListener connectionListener : connectionListeners) {
+			connectionListener.joinRoom(this, codeRoom);
+		}
+	}
+	//
+	
+	// Done Listener
+	private final Set<DoneListener> doneListeners = new CopyOnWriteArraySet<DoneListener>();
+	
+	public final void addDoneListener(final DoneListener listener) {
+		doneListeners.add(listener);
+	}
+
+	public final void removeDoneListener(final DoneListener listener) {
+		doneListeners.remove(listener);
+	}
+	
+	private void threadComplete() {
+		for (DoneListener doneListener : doneListeners) {
+			doneListener.threadComplete(this);
 		}
 	}
 	
-	private final void joinRoom(String codeRoom) {
-		for (ClientThreadListener listener : listeners) {
-			listener.joinRoom(socket, codeRoom);
+	private void leaveRoom() {
+		for (DoneListener doneListener : doneListeners) {
+			doneListener.leaveRoom(this);
 		}
 	}
+	//
 
-	public ClientThread(Socket clientSocket) {
-		this.socket = clientSocket;
+	public ClientThread(Socket socket) {
+		isHost = false;
+		isInRoom = false;
+		isSnakeDead = false;
+		this.socket = socket;
+	}
+	
+	// Getter and Setter
+	public boolean isHost() {
+		return isHost;
 	}
 
-	public void run() {
-		BufferedReader in = null;
+	public void setHost(boolean isHost) {
+		this.isHost = isHost;
+	}
+
+	public boolean isInRoom() {
+		return isInRoom;
+	}
+
+	public void setInRoom(boolean isInRoom) {
+		this.isInRoom = isInRoom;
+	}
+	
+	public Socket getSocket() {
+		return socket;
+	}
+	
+	public boolean isSnakeDead() {
+		return isSnakeDead;
+	}
+
+	public void setSnakeDead(boolean isSnakeDead) {
+		this.isSnakeDead = isSnakeDead;
+	}
+	//
+
+	// Send to Client
+	public void send(String str) {
 		DataOutputStream out = null;
 		try {
-			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			out = new DataOutputStream(socket.getOutputStream());
+			out.writeBytes(str);
+			out.flush();
 		} catch (IOException e) {
-			notifyListeners();
+			threadComplete();
 			this.interrupt();
 			return;
 		}
-		
+	}
+	
+	public void send(byte aByte) {
+		DataOutputStream out = null;
+		try {
+			out = new DataOutputStream(socket.getOutputStream());
+			out.writeByte(aByte);
+			out.flush();
+		} catch (IOException e) {
+			threadComplete();
+			this.interrupt();
+			return;
+		}
+	}
+	//
+
+	// Run when start thread
+	public void run() {
+		BufferedReader in = null;
+		try {
+			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+		} catch (IOException e) {
+			try {
+				socket.close();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			
+			threadComplete();
+			this.interrupt();
+			return;
+		}
+
 		String line;
 		while (true) {
 			try {
 				line = in.readLine();
-				
+
 				if (socket.isClosed()) {
 					break;
 				}
-				
-				String control = line.substring(0, 4);
 
-				if ((line == null) || control.equalsIgnoreCase("QUIT")) {
-					out.writeBytes(line + "\n\r");
-					System.out.println(line);
-					out.flush();
-					socket.close();
-					break;
-				} else if (control.equalsIgnoreCase("CREA")) {
-					out.writeBytes(line + "\n\r");
-					System.out.println(line);
-					out.flush();
-					createRoom();
-					break;
-				} else if (control.equalsIgnoreCase("JOIN")) {
-					out.writeBytes("JOIN\n\r");
-					System.out.println(line);
-					out.flush();
-					String codeRoom = line.substring(4);
-					System.out.println(codeRoom);
-					joinRoom(codeRoom);
-					break;
+				String control = null;
+				if (isInRoom) {
+					control = line.substring(0, 3);
+
+					if (control.equalsIgnoreCase("STA")) { // START GAME
+						startGame();
+					} else if (control.equalsIgnoreCase("STO")) { // STOP GAME
+						stopGame();
+					} else if (control.equalsIgnoreCase("DIR")) { // CHANGE DIRECTION
+						char dir = line.charAt(3);
+						Direction direction = Direction.values()[dir - '0'];
+						changeDirection(direction);
+					} else if (control.equalsIgnoreCase("LEA")) { // LEAVE ROOM
+						System.out.println("LEAVE ROOM");
+						leaveRoom();
+					}
+				} else {
+					control = line.substring(0, 4);
+
+					if ((line == null) || control.equalsIgnoreCase("QUIT")) {						
+						socket.close();
+						break;
+					} else if (control.equalsIgnoreCase("CREA")) { // CREATE ROOM
+						createRoom();
+					} else if (control.equalsIgnoreCase("JOIN")) { // JOIN ROOM
+						String codeRoom = line.substring(4);
+						System.out.println(codeRoom);
+						joinRoom(codeRoom);
+						break;
+					}
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -92,7 +239,16 @@ public class ClientThread extends Thread {
 			}
 		}
 		
-		notifyListeners();
+		try {
+			socket.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		System.out.println("Done client thread");
+		
+		threadComplete();
 		this.interrupt();
 	}
 }
