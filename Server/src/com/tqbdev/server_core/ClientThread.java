@@ -161,11 +161,24 @@ public class ClientThread extends Thread {
 		}
 	}
 	
-	public void send(byte aByte) {
+	public void send(int number) {
 		DataOutputStream out = null;
 		try {
 			out = new DataOutputStream(socket.getOutputStream());
-			out.writeByte(aByte);
+			out.writeInt(number);
+			out.flush();
+		} catch (IOException e) {
+			threadComplete();
+			this.interrupt();
+			return;
+		}
+	}
+	
+	public void send(byte[] arrayByte) {
+		DataOutputStream out = null;
+		try {
+			out = new DataOutputStream(socket.getOutputStream());
+			out.write(arrayByte);
 			out.flush();
 		} catch (IOException e) {
 			threadComplete();
@@ -230,7 +243,6 @@ public class ClientThread extends Thread {
 						String codeRoom = line.substring(4);
 						System.out.println(codeRoom);
 						joinRoom(codeRoom);
-						break;
 					}
 				}
 			} catch (IOException e) {
