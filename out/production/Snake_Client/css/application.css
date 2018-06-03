@@ -1,0 +1,7 @@
+
+.btn_connect:hover {
+    -fx-background-color: red;
+}
+#btnConnect {
+    -fx-background-color: red;
+}
