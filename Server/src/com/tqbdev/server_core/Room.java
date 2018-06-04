@@ -8,11 +8,11 @@ import com.tqbdev.game_core.GameListener;
 
 public class Room extends Thread implements HostListener, DoneListener, GameListener {
 	private ClientThread[] clientThreads = { null, null, null, null };
-	private ClientThread hostThread = null;
 	private String roomCode = null;
 
 	private Game game = null;
 	private boolean isPlaying = false;
+	private boolean isBeginPlaying = false;
 	private boolean endRoom = false;
 
 	// Room Listener
@@ -28,7 +28,7 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 
 	private final void destroyRoom() {
 		endRoom = true;
-		
+
 		for (RoomListener listener : listeners) {
 			listener.destroyRoom(this);
 		}
@@ -50,11 +50,13 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 	//
 
 	public Room(ClientThread hostThread) {
-		this.hostThread = hostThread;
-		this.hostThread.addDoneListener(this);
-		this.hostThread.addHostListener(this);
+		hostThread.addDoneListener(this);
+		hostThread.addHostListener(this);
+		hostThread.setHost(true);
 		this.clientThreads[0] = hostThread;
-		this.hostThread.setHost(true);
+
+		game = new Game(60, 60);
+		game.addListener(this);
 	}
 
 	public boolean addPlayer(ClientThread playerThread) {
@@ -72,18 +74,30 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 
 		return false;
 	}
-	
+
 	private void sendInformationRoom() {
 		int numOfClient = 0;
-		
-		while (clientThreads[numOfClient] != null && numOfClient != clientThreads.length) {
+
+		while (numOfClient != clientThreads.length && clientThreads[numOfClient] != null) {
 			numOfClient++;
 		}
-		
-		System.out.println(numOfClient);
+
+		// System.out.println(numOfClient);
 
 		for (int i = 0; i < numOfClient; i++) {
 			clientThreads[i].send("INF" + numOfClient + "\r\n");
+		}
+	}
+
+	private void sendBeginSignal() {
+		for (int i = 0; i < clientThreads.length; i++) {
+			ClientThread clientThread = clientThreads[i];
+			String send = "BEG";
+			send += i;
+			send += "\r\n";
+			if (clientThread != null) {
+				clientThread.send(send);
+			}
 		}
 	}
 
@@ -94,55 +108,71 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 				try {
 					Thread.sleep(3000);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			} else {
-				this.interrupt();
+				if (isBeginPlaying) {
+					isBeginPlaying = false;
+
+					sendBeginSignal();
+					try {
+						Thread.sleep(5000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+
+				game.move();
+				game.sendBoard();
+
+				try {
+					Thread.sleep(game.getDelay());
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
 			}
 		}
 	}
 
 	@Override
 	public void startGame() {
-		game = new Game(60, 60);
-		game.addListener(this);
 		game.setPlayerThreads(clientThreads);
 		game.newGame();
-		game.beginGame();
-		game.start();
 		isPlaying = true;
+		isBeginPlaying = true;
+		this.interrupt();
 	}
 
 	@Override
 	public void stopGame() {
-		System.out.println("STOP GAME");
-		game.hostEndGame();
 		isPlaying = false;
+		isBeginPlaying = false;
 		this.interrupt();
+		game.hostEndGame();
 	}
 
 	@Override
 	public void leaveRoom(ClientThread thread) {
 		thread.removeHostListener(this);
 		thread.removeDoneListener(this);
-		removePlayer(thread);		
+		removePlayer(thread);
 	}
 
 	@Override
 	public void threadComplete(ClientThread thread) {
-		removePlayer(thread);		
+		removePlayer(thread);
 	}
-	
+
 	private void removePlayer(ClientThread thread) {
-		System.out.println("Remove Player");
-		if (isPlaying()) {
-			// TODO end game
+		if (isPlaying && thread.isSnakeDead() == false) {
+			isPlaying = false;
+
+			game.playerLeaveGame();
 		}
-		
+
 		if (thread.isHost()) {
 			clientThreads[0] = null;
-			
+
 			for (int i = 0; i < clientThreads.length - 1; i++) {
 				clientThreads[i] = clientThreads[i + 1];
 			}
@@ -156,30 +186,34 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 					break;
 				}
 			}
-			
+
 			clientThreads[i] = null;
-			
+
 			for (; i < clientThreads.length - 1; i++) {
 				clientThreads[i] = clientThreads[i + 1];
 			}
-			
+
 			clientThreads[clientThreads.length - 1] = null;
 		}
-		
+
 		if (clientThreads[0] == null) {
 			destroyRoom();
 		} else {
-			clientThreads[0].setHost(true);
-			clientThreads[0].addHostListener(this);
-			clientThreads[0].send("CHA\r\n");
+			if (!clientThreads[0].isHost()) {
+				clientThreads[0].setHost(true);
+				clientThreads[0].addHostListener(this);
+				clientThreads[0].send("CHA\r\n");
+			}
 		}
-		
+
 		thread.setInRoom(false);
 		thread.setHost(false);
+		thread.setSnakeDead(false);
 	}
 
 	@Override
 	public void endGame() {
-		isPlaying = false;		
+		isPlaying = false;
+		this.interrupt();
 	}
 }

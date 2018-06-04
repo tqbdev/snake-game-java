@@ -15,9 +15,10 @@ import javax.swing.border.EmptyBorder;
 
 import com.tqbdev.client_core.ClientThread;
 import com.tqbdev.client_core.ConnectListener;
+import com.tqbdev.client_core.DoneListener;
 import com.tqbdev.gui.components.Dialog;
 
-public class ConnectedScreen extends JFrame implements ActionListener, ConnectListener {
+public class ConnectedScreen extends JFrame implements ActionListener, ConnectListener, DoneListener {
 
 	/**
 	 * 
@@ -36,6 +37,7 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		this.previousJFrame = previousJFrame;
 		this.clientThread = clientThread;
 		this.clientThread.addConnectListener(this);
+		this.clientThread.addDoneListener(this);
 		
 		setTitle("Registration...");
 		
@@ -76,6 +78,14 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		
 		return jPanel;
 	}
+	
+	public JFrame getPreviousJFrame() {
+		return previousJFrame;
+	}
+
+	public void setPreviousJFrame(JFrame previousJFrame) {
+		this.previousJFrame = previousJFrame;
+	}
 
 	@Override
 	public void actionPerformed(ActionEvent arg) {
@@ -101,6 +111,9 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		    }
 		} else if (actionCommand.equals("QUIT")) {
 			clientThread.quit();
+			this.setVisible(false);
+			previousJFrame.setVisible(true);
+			this.dispose();
 		}
 	}
 
@@ -109,6 +122,7 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		if (isOK) {
 			Dialog.showInform(this, "Create Room Successfully." + "\r\nRoom code: " + respone, "Notice...");
 			this.setVisible(false);
+			this.clientThread.removeDoneListener(this);
 			RoomScreen roomScreen = new RoomScreen(this, clientThread, respone);
 			roomScreen.setVisible(true);
 		} else {
@@ -121,11 +135,21 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		if (isOK) {
 			Dialog.showInform(this, "Join Room Successfully.", "Notice...");
 			this.setVisible(false);
+			this.clientThread.removeDoneListener(this);
 			RoomScreen roomScreen = new RoomScreen(this, clientThread, respone);
 			roomScreen.setVisible(true);
 		} else {
 			Dialog.showErrorMessage(this, "Join Room Failure." + "\r\nError: " + respone, "Error...");
 		}	
+	}
+
+	@Override
+	public void ConnectionDone(ClientThread clientThread) {
+		Dialog.showErrorMessage(this, "Server is disconnect", "Error...");
+		
+		this.setVisible(false);
+		previousJFrame.setVisible(true);
+		this.dispose();		
 	}
 
 }

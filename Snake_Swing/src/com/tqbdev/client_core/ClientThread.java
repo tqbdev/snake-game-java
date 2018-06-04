@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
 import com.tqbdev.snake_core.Direction;
+import com.tqbdev.snake_core.EndGameState;
 
 public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 	private boolean isInRoom;
@@ -56,39 +57,69 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 		roomListeners.remove(listener);
 	}
 
-	public final void changeHost() {
+	private final void changeHost() {
 		for (RoomListener roomListener : roomListeners) {
 			roomListener.changeHost();
 		}
 	}
 
-	public final void updateRoom(int numberOfPlayers) {
+	private final void updateRoom(int numberOfPlayers) {
 		for (RoomListener roomListener : roomListeners) {
 			roomListener.updateRoom(numberOfPlayers);
 		}
 	}
 	//
-	
+
 	// Game Listener
 	private final Set<GameListener> gameListeners = new CopyOnWriteArraySet<GameListener>();
-	
+
 	public final void addGameListener(final GameListener listener) {
 		gameListeners.add(listener);
 	}
-	
+
 	public final void removeGameListener(final GameListener listener) {
 		gameListeners.remove(listener);
 	}
-	
-	public final void updateBoard(String boardStr) {
+
+	private final void updateBoard(String boardStr) {
 		for (GameListener gameListener : gameListeners) {
 			gameListener.updateBoard(boardStr);
 		}
 	}
-	
-	public final void endGame(String response) {
+
+	private final void beginGame() {
 		for (GameListener gameListener : gameListeners) {
-			gameListener.endGame(response);
+			gameListener.beginGame();
+		}
+	}
+
+	private final void endGame(EndGameState endGameState, int point) {
+		for (GameListener gameListener : gameListeners) {
+			gameListener.endGame(endGameState, point);
+		}
+	}
+
+	private final void updatePoint(String pointStr) {
+		for (GameListener gameListener : gameListeners) {
+			gameListener.updatePoint(pointStr);
+		}
+	}
+	//
+
+	// Done Listener
+	private final Set<DoneListener> doneListeners = new CopyOnWriteArraySet<DoneListener>();
+
+	public final void addDoneListener(DoneListener listener) {
+		doneListeners.add(listener);
+	}
+
+	public final void removeDoneListener(DoneListener listener) {
+		doneListeners.remove(listener);
+	}
+
+	private final void ConnectionDone() {
+		for (DoneListener doneListener : doneListeners) {
+			doneListener.ConnectionDone(this);
 		}
 	}
 	//
@@ -129,6 +160,8 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 
 	public void leaveRoom() {
 		send("LEA\r\n");
+		isInRoom = false;
+		isHost = false;
 	}
 
 	public void startGame() {
@@ -155,7 +188,7 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 			dir = "U";
 			break;
 		}
-		
+
 		send("DIR" + dir + "\r\n");
 	}
 
@@ -183,7 +216,6 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 			try {
 				socket.close();
 			} catch (IOException e1) {
-				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
 
@@ -195,22 +227,21 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 			if (socket.isClosed()) {
 				break;
 			}
-			
+
 			try {
 				// if not playing
 				Thread.sleep(20);
 				// else sleep 10
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 
 			try {
 				line = in.readLine();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				line = null;
+				// e.printStackTrace();
+				// line = null;
+				break;
 			}
 
 			if (line != null && line.length() > 0) {
@@ -226,14 +257,48 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 						} catch (NumberFormatException e) {
 							numberOfPlayers = 0;
 						}
-						
+
 						updateRoom(numberOfPlayers);
 					} else if (control.equalsIgnoreCase("CHA")) {
 						changeHost();
 					} else if (control.equalsIgnoreCase("BOA")) {
 						String boardStr = line.substring(3);
-						
+
 						updateBoard(boardStr);
+					} else if (control.equalsIgnoreCase("BEG")) {
+						beginGame();
+					} else if (control.equalsIgnoreCase("END")) {
+						char stateEnd = line.charAt(3);
+						String pointStr = line.substring(4);
+
+						EndGameState endGameState = EndGameState.FullMap;
+						switch (stateEnd) {
+						case '0':
+							endGameState = EndGameState.FullMap;
+							break;
+						case '1':
+							endGameState = EndGameState.PlayerLeave;
+							break;
+						case '2':
+							endGameState = EndGameState.HostEnd;
+							break;
+						case '3':
+							endGameState = EndGameState.Collision;
+							break;
+						}
+						
+						int point = 0;
+						try {
+							point = Integer.parseInt(pointStr);
+						} catch (NumberFormatException e) {
+							point = 0;
+						}
+						
+						endGame(endGameState, point);
+					} else if (control.equalsIgnoreCase("POI")) {
+						String pointStr = line.substring(3);
+
+						updatePoint(pointStr);
 					}
 				} else {
 					String control = line.substring(0, 4);
@@ -262,5 +327,13 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 				}
 			}
 		}
+
+		try {
+			socket.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+
+		ConnectionDone();
 	}
 }

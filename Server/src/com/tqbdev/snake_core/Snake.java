@@ -24,6 +24,8 @@ public class Snake implements PlayerListener {
 	private StateCell stateHead;
 
 	private int point;
+	
+	private boolean isDead = false;
 
 	private final Set<SnakeListener> listeners = new CopyOnWriteArraySet<SnakeListener>();
 
@@ -41,7 +43,14 @@ public class Snake implements PlayerListener {
 		}
 	}
 	
+	public boolean isDead() {
+		return isDead;
+	}
+	
 	private final void collision() {
+		isDead = true;
+		clearSnake();
+		
 		for (SnakeListener listener : listeners) {
 			listener.collision(snakePlayer);
 		}
@@ -68,11 +77,28 @@ public class Snake implements PlayerListener {
 		}
 	}
 	
-	public void init() {
-		setHead(boardGame[10][10]);
+	public void init() {		
 		setState();
+		
+		switch (this.snakePlayer) {
+		case Snake_One:
+			setHead(boardGame[10][10]);
+			currentDir = nextDir = Direction.LEFT;
+			break;
+		case Snake_Two:
+			setHead(boardGame[50][10]);
+			currentDir = nextDir = Direction.UP;
+			break;
+		case Snake_Three:
+			setHead(boardGame[50][50]);
+			currentDir = nextDir = Direction.RIGHT;
+			break;
+		case Snake_Four:
+			setHead(boardGame[10][50]);
+			currentDir = nextDir = Direction.DOWN;
+			break;
+		}
 
-		currentDir = nextDir = Direction.LEFT;
 		point = 0;
 	}
 
@@ -136,9 +162,6 @@ public class Snake implements PlayerListener {
 		}
 
 		setHead(newHead);
-
-		System.out.println(
-				"Snake: " + snakePlayer.ordinal() + " - row: " + newHead.getRow() + " - col: " + newHead.getCol());
 	}
 
 	@Override
