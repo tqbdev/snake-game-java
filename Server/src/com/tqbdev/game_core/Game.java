@@ -11,7 +11,7 @@ import com.tqbdev.snake_core.SnakeListener;
 import com.tqbdev.snake_core.Snake_Player;
 import com.tqbdev.snake_core.StateCell;
 
-public class Game extends Thread implements SnakeListener {
+public class Game implements SnakeListener {
 	private Cell[][] boardGame = null;
 	private int height;
 	private int width;
@@ -21,12 +21,8 @@ public class Game extends Thread implements SnakeListener {
 
 	private ClientThread[] clientThreads = null;
 
-	private boolean isPlaying;
-
 	private int totalPoint;
 	private int maxPoint;
-
-	private boolean endGame = false;
 
 	// Game Listener
 	private final Set<GameListener> listeners = new CopyOnWriteArraySet<GameListener>();
@@ -40,7 +36,6 @@ public class Game extends Thread implements SnakeListener {
 	}
 
 	private final void endGame() {
-		endGame = true;
 		for (GameListener listener : listeners) {
 			listener.endGame();
 		}
@@ -55,7 +50,6 @@ public class Game extends Thread implements SnakeListener {
 	}
 
 	private void init() {
-		isPlaying = false;
 		maxPoint = height * width;
 		totalPoint = 0;
 		this.boardGame = new Cell[height][width];
@@ -71,16 +65,23 @@ public class Game extends Thread implements SnakeListener {
 
 	public void setPlayerThreads(ClientThread[] clientThreads) {
 		this.clientThreads = clientThreads;
+
+		for (ClientThread clientThread : clientThreads) {
+			if (clientThread != null) {
+				clientThread.setSnakeDead(false);
+			}
+		}
 	}
 
 	public void newGame() {
-		isPlaying = false;
 		init();
 		initSnake();
 		generateFood();
 	}
 
 	public void initSnake() {
+		currentSnakePlayer = Snake_Player.Snake_One;
+
 		for (int i = 0; i < clientThreads.length; i++) {
 			ClientThread clientThread = clientThreads[i];
 
@@ -95,15 +96,44 @@ public class Game extends Thread implements SnakeListener {
 		}
 	}
 
-	public void beginGame() {
-		isPlaying = true;
+	public void hostEndGame() {
+		for (int i = 0; i < clientThreads.length; i++) {
+			ClientThread clientThread = clientThreads[i];
+
+			if (clientThread != null && clientThread.isSnakeDead() == false) {
+				String end = "END2";
+
+				Snake snake = snakes[i];
+				if (snake != null) {
+					end += snake.getPoint();
+				} else {
+					end += '0';
+				}
+
+				end += "\r\n";
+
+				clientThread.send(end);
+			}
+		}
 	}
 
-	public void hostEndGame() {
-		System.out.println("STOP GAME");
-		isPlaying = false;
-		endGame = true;
-		// Send message to client
+	public void playerLeaveGame() {
+		for (int i = 0; i < clientThreads.length; i++) {
+			ClientThread clientThread = clientThreads[i];
+
+			if (clientThread != null && clientThread.isSnakeDead() == false) {
+				String end = "END1";
+
+				Snake snake = snakes[i];
+				if (snake != null) {
+					end += snake.getPoint();
+				} else {
+					end += '0';
+				}
+
+				clientThread.send(end);
+			}
+		}
 	}
 
 	public boolean removeSnake(Snake_Player player) {
@@ -114,7 +144,7 @@ public class Game extends Thread implements SnakeListener {
 		for (int i = 0; i < snakes.length; i++) {
 			Snake snake = snakes[i];
 
-			if (snake != null) {
+			if (snake != null && snake.isDead() == false) {
 				snake.move();
 			}
 		}
@@ -122,10 +152,6 @@ public class Game extends Thread implements SnakeListener {
 
 	public Cell[][] getBoardGame() {
 		return this.boardGame;
-	}
-
-	public boolean isPlaying() {
-		return isPlaying;
 	}
 
 	private void generateFood() {
@@ -142,12 +168,28 @@ public class Game extends Thread implements SnakeListener {
 
 	@Override
 	public void eatFood() {
+		sendPoint();
 		totalPoint++;
 		if (totalPoint >= maxPoint) {
-			isPlaying = false;
-			endGame();
+			for (int i = 0; i < clientThreads.length; i++) {
+				ClientThread clientThread = clientThreads[i];
 
-			// send message Done
+				if (clientThread != null && clientThread.isSnakeDead() == false) {
+					String end = "END0";
+
+					Snake snake = snakes[i];
+					if (snake != null) {
+						end += snake.getPoint();
+					} else {
+						end += '0';
+					}
+
+					end += "\r\n";
+
+					clientThread.send(end);
+				}
+			}
+			endGame();
 			return;
 		}
 
@@ -157,24 +199,32 @@ public class Game extends Thread implements SnakeListener {
 	@Override
 	public void collision(Snake_Player snakePlayer) {
 		Snake snake = snakes[snakePlayer.ordinal()];
-		if (snake != null) {
-			snake.clearSnake();
-		}
 
-		clientThreads[snakePlayer.ordinal()] = null;
-		// TODO Delete snake and wait or leave room if have others playing
-		// else new game or leave room
+		ClientThread clientThread = clientThreads[snakePlayer.ordinal()];
+		clientThread.setSnakeDead(true);
+		// clientThreads[snakePlayer.ordinal()] = null;
 
-		// send message Done
-
+		// Send end signal
+		String str = "END" + 3 + snake.getPoint() + "\r\n";
+		clientThread.send(str);
 	}
 
-	private long lastTime = 0;
-	private long nowTime = 0;
+	private int fps = 20;
+	private long delay = 1000 / fps;
 
-	private int fps = 15;
+	public int getFPS() {
+		return fps;
+	}
 
-	private void sendBoard() {
+	public void setFPS(int fps) {
+		this.fps = fps;
+	}
+
+	public long getDelay() {
+		return delay;
+	}
+
+	public void sendBoard() {
 		String send = "BOA";
 
 		for (int i = 0; i < height; i++) {
@@ -186,24 +236,48 @@ public class Game extends Thread implements SnakeListener {
 		send += "\r\n";
 
 		for (ClientThread clientThread : clientThreads) {
-			if (clientThread != null) {
+			if (clientThread != null && clientThread.isSnakeDead() == false) {
 				clientThread.send(send);
 			}
 		}
 	}
 
-	public void run() {
-		while (endGame == false) {
-			if (isPlaying) {
-				nowTime = System.currentTimeMillis();
+	public void sendPoint() {
+		String send = "POI";
 
-				if (nowTime - lastTime > (1000 / (double) fps)) {
-					lastTime = nowTime;
-					move();
+		for (int i = 0; i < snakes.length; i++) {
+			Snake snake = snakes[i];
 
-					// send information to client
-					sendBoard();
+			if (snake != null) {
+				if (snake.isDead()) {
+					send += "0";
+				} else {
+					send += "1";
 				}
+
+				int point = snake.getPoint();
+
+				int paddingPoint = 3;
+				if (point != 0) {
+					paddingPoint = 3 - (int) (Math.log10(point));
+				}
+
+				while (paddingPoint > 0) {
+					paddingPoint--;
+
+					send += "0";
+				}
+
+				send += point;
+			}
+		}
+
+		send += "\r\n";
+		// System.out.println(send);
+
+		for (ClientThread clientThread : clientThreads) {
+			if (clientThread != null && clientThread.isSnakeDead() == false) {
+				clientThread.send(send);
 			}
 		}
 	}
