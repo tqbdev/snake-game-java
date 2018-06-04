@@ -60,7 +60,7 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 
 		if (!thread.isInRoom()) {
 			// SEND OK + Roomcode
-			sendMessage(thread, "OK", roomCode);
+			sendMessage(thread, "CREA1", roomCode);
 			
 			Room room = new Room(thread);
 			thread.setInRoom(true);
@@ -72,7 +72,7 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 			System.out.println("CREATE room code: " + roomCode);
 		} else {
 			// SEND ER + Message
-			sendMessage(thread, "ER", "You are in room.");
+			sendMessage(thread, "CREA0", "You are in room.");
 		}
 	}
 
@@ -84,16 +84,16 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 
 				if (room.isPlaying()) {
 					// ER
-					sendMessage(thread, "ER", "This room is playing.");
+					sendMessage(thread, "JOIN0", "This room is playing.");
 				} else {
 					// OK
-					sendMessage(thread, "OK", "");
+					sendMessage(thread, "JOIN1", codeRoom);
 					room.addPlayer(thread);
 					thread.setInRoom(true);
 				}
 			} else {
 				// ER
-				sendMessage(thread, "ER", "Room code is invalid.");
+				sendMessage(thread, "JOIN0", "Room code is invalid.");
 			}
 		}
 	}
@@ -108,12 +108,12 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 
 	@Override
 	public void leaveRoom(ClientThread thread) {
-		if (thread.isInRoom()) {
-			thread.setInRoom(false);
-			thread.setHost(false);
-
-			// Notify to Room
-			// Same threadComplete
-		}
+//		if (thread.isInRoom()) {
+//			thread.setInRoom(false);
+//			thread.setHost(false);
+//
+//			// Notify to Room
+//			// Same threadComplete
+//		}
 	}
 }

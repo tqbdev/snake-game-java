@@ -25,7 +25,7 @@ public class Game extends Thread implements SnakeListener {
 
 	private int totalPoint;
 	private int maxPoint;
-	
+
 	private boolean endGame = false;
 
 	// Game Listener
@@ -77,6 +77,7 @@ public class Game extends Thread implements SnakeListener {
 		isPlaying = false;
 		init();
 		initSnake();
+		generateFood();
 	}
 
 	public void initSnake() {
@@ -97,8 +98,9 @@ public class Game extends Thread implements SnakeListener {
 	public void beginGame() {
 		isPlaying = true;
 	}
-	
+
 	public void hostEndGame() {
+		System.out.println("STOP GAME");
 		isPlaying = false;
 		endGame = true;
 		// Send message to client
@@ -144,7 +146,7 @@ public class Game extends Thread implements SnakeListener {
 		if (totalPoint >= maxPoint) {
 			isPlaying = false;
 			endGame();
-			
+
 			// send message Done
 			return;
 		}
@@ -158,7 +160,7 @@ public class Game extends Thread implements SnakeListener {
 		if (snake != null) {
 			snake.clearSnake();
 		}
-		
+
 		clientThreads[snakePlayer.ordinal()] = null;
 		// TODO Delete snake and wait or leave room if have others playing
 		// else new game or leave room
@@ -170,10 +172,28 @@ public class Game extends Thread implements SnakeListener {
 	private long lastTime = 0;
 	private long nowTime = 0;
 
-	private int fps = 1;
+	private int fps = 15;
+
+	private void sendBoard() {
+		String send = "BOA";
+
+		for (int i = 0; i < height; i++) {
+			for (int j = 0; j < width; j++) {
+				send += boardGame[i][j].getState().ordinal();
+			}
+		}
+
+		send += "\r\n";
+
+		for (ClientThread clientThread : clientThreads) {
+			if (clientThread != null) {
+				clientThread.send(send);
+			}
+		}
+	}
 
 	public void run() {
-		while (true) {
+		while (endGame == false) {
 			if (isPlaying) {
 				nowTime = System.currentTimeMillis();
 
@@ -182,11 +202,8 @@ public class Game extends Thread implements SnakeListener {
 					move();
 
 					// send information to client
+					sendBoard();
 				}
-			}
-			
-			if (endGame) {
-				break;
 			}
 		}
 	}

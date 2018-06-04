@@ -214,6 +214,15 @@ public class ClientThread extends Thread {
 				if (socket.isClosed()) {
 					break;
 				}
+				
+				try {
+					// if not playing
+					Thread.sleep(100);
+					// else sleep 10
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 
 				String control = null;
 				if (isInRoom) {
@@ -225,7 +234,24 @@ public class ClientThread extends Thread {
 						stopGame();
 					} else if (control.equalsIgnoreCase("DIR")) { // CHANGE DIRECTION
 						char dir = line.charAt(3);
-						Direction direction = Direction.values()[dir - '0'];
+						
+						Direction direction = Direction.DOWN;
+						switch (dir) {
+						case 'D':
+							direction = Direction.DOWN;
+							break;
+						case 'U':
+							direction = Direction.UP;
+							break;
+						case 'L':
+							direction = Direction.LEFT;
+							break;
+						case 'R':
+							direction = Direction.RIGHT;
+							break;
+						}
+						
+						System.out.println(direction);
 						changeDirection(direction);
 					} else if (control.equalsIgnoreCase("LEA")) { // LEAVE ROOM
 						System.out.println("LEAVE ROOM");

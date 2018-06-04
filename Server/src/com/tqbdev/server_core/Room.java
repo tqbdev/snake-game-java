@@ -81,28 +81,31 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 		}
 		
 		System.out.println(numOfClient);
-		byte[] arrayByte = new byte[2];
-		arrayByte[0] = 0;
-		arrayByte[1] = (byte) numOfClient;
-		
-		int len = arrayByte.length;
+
 		for (int i = 0; i < numOfClient; i++) {
-			clientThreads[i].send("INF" + len);
-			clientThreads[i].send(arrayByte);
+			clientThreads[i].send("INF" + numOfClient + "\r\n");
 		}
 	}
 
 	public void run() {
 		while (endRoom == false) {
-			if (!isPlaying()) {
+			if (isPlaying == false) {
 				sendInformationRoom();
+				try {
+					Thread.sleep(3000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			} else {
+				this.interrupt();
 			}
 		}
 	}
 
 	@Override
 	public void startGame() {
-		game = new Game(20, 20);
+		game = new Game(60, 60);
 		game.addListener(this);
 		game.setPlayerThreads(clientThreads);
 		game.newGame();
@@ -113,8 +116,10 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 
 	@Override
 	public void stopGame() {
+		System.out.println("STOP GAME");
 		game.hostEndGame();
 		isPlaying = false;
+		this.interrupt();
 	}
 
 	@Override
@@ -133,8 +138,6 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 		System.out.println("Remove Player");
 		if (isPlaying()) {
 			// TODO end game
-		} else {
-			// TODO remove
 		}
 		
 		if (thread.isHost()) {
@@ -145,6 +148,22 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 			}
 
 			clientThreads[clientThreads.length - 1] = null;
+		} else {
+			// Find thread
+			int i = 0;
+			for (; i < clientThreads.length; i++) {
+				if (clientThreads[i].equals(thread)) {
+					break;
+				}
+			}
+			
+			clientThreads[i] = null;
+			
+			for (; i < clientThreads.length - 1; i++) {
+				clientThreads[i] = clientThreads[i + 1];
+			}
+			
+			clientThreads[clientThreads.length - 1] = null;
 		}
 		
 		if (clientThreads[0] == null) {
@@ -152,8 +171,11 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 		} else {
 			clientThreads[0].setHost(true);
 			clientThreads[0].addHostListener(this);
-			// TODO Notify to client to change host
+			clientThreads[0].send("CHA\r\n");
 		}
+		
+		thread.setInRoom(false);
+		thread.setHost(false);
 	}
 
 	@Override
