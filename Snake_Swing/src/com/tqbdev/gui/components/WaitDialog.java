@@ -11,19 +11,23 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
-public class WaitDialog extends JDialog {
+import com.tqbdev.client_core.CountDownListener;
+
+public class WaitDialog extends JDialog implements CountDownListener {
 
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 7687195061491166168L;
+	
+	JLabel messLable;
 
 	/**
 	 * Create the dialog.
 	 */
-	public WaitDialog(JFrame parent, String message) {
+	public WaitDialog(JFrame parent) {
 		super(parent, false);
-		setBounds(100, 100, 450, 300);
+		setBounds(100, 100, 200, 100);
 		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
 		setTitle("Notice...");
 		
@@ -32,7 +36,7 @@ public class WaitDialog extends JDialog {
 		contentPanel.setLayout(new FlowLayout());
 		contentPanel.setBorder(new EmptyBorder(5, 5, 5, 5));
 		
-		JLabel messLable = new JLabel(message);
+		messLable = new JLabel("Game start in 10");
 		messLable.setFont(new Font("TimesRoman", Font.PLAIN, 30));
 		messLable.setForeground(Color.BLUE);
 		contentPanel.add(messLable);
@@ -40,6 +44,13 @@ public class WaitDialog extends JDialog {
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		
 		setVisible(true);
+		setResizable(false);
+		pack();
+	}
+
+	@Override
+	public void updateValue(int value) {
+		messLable.setText("Game start in " + value);
 		pack();
 	}
 

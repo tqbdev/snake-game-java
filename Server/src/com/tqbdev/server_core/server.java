@@ -6,6 +6,8 @@ import java.net.Socket;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.TimerTask;
+import java.util.Timer;
 
 import com.tqbdev.utils.RandomString;
 
@@ -16,12 +18,29 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 
 	private static HashMap<String, Thread> RoomThreads = null;
 	private static Set<Thread> ClientThreads = null;
+	private Timer timer = new Timer();
 
 	private static final RandomString ranRoomCode = new RandomString(4);
 
 	public Server() {
 		RoomThreads = new HashMap<>();
 		ClientThreads = new HashSet<>();
+		
+		timer.scheduleAtFixedRate(new TimerTask() {
+			  @Override
+			  public void run() {
+				  String send = "CONE";
+				  send += ClientThreads.size();
+				  send += "\r\n";
+				  
+				  for (Thread thread : ClientThreads) {
+					  ClientThread clientThread = (ClientThread) thread;
+					  if (clientThread != null && clientThread.isAlive() && clientThread.isInRoom() == false) {
+						  clientThread.send(send);
+					  }
+				  }
+			  }
+			}, 3000, 3000);
 	}
 
 	public void run() throws IOException {
@@ -85,7 +104,11 @@ public class Server implements ConnectionListener, RoomListener, DoneListener {
 				if (room.isPlaying()) {
 					// ER
 					sendMessage(thread, "JOIN0", "This room is playing.");
-				} else {
+				} else if (room.isFull()) {
+					// ER
+					sendMessage(thread, "JOIN0", "This room is full.");
+				}
+				else {
 					// OK
 					sendMessage(thread, "JOIN1", codeRoom);
 					room.addPlayer(thread);

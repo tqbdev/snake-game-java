@@ -16,6 +16,8 @@ public class ClientThread extends Thread {
 	private boolean isInRoom;
 	private boolean isSnakeDead;
 	
+	private boolean isChecking = false;
+	
 	// Listener Player
 	private final Set<PlayerListener> playerListeners = new CopyOnWriteArraySet<PlayerListener>();
 
@@ -186,6 +188,26 @@ public class ClientThread extends Thread {
 			return;
 		}
 	}
+	
+	String endStr = null;
+	
+	public void setEndStr(String endStr) {
+		this.endStr = endStr;
+	}
+	
+	public void sendEndSignal() {
+		isChecking = true;
+		DataOutputStream out = null;
+		try {
+			out = new DataOutputStream(socket.getOutputStream());
+			out.writeBytes(endStr);
+			out.flush();
+		} catch (IOException e) {
+			threadComplete();
+			this.interrupt();
+			return;
+		}
+	}
 	//
 
 	// Run when start thread
@@ -197,8 +219,7 @@ public class ClientThread extends Thread {
 			try {
 				socket.close();
 			} catch (IOException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
+				//e1.printStackTrace();
 			}
 			
 			threadComplete();
@@ -217,11 +238,10 @@ public class ClientThread extends Thread {
 				
 				try {
 					// if not playing
-					Thread.sleep(100);
+					Thread.sleep(30);
 					// else sleep 10
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+					//e.printStackTrace();
 				}
 
 				String control = null;
@@ -256,6 +276,12 @@ public class ClientThread extends Thread {
 					} else if (control.equalsIgnoreCase("LEA")) { // LEAVE ROOM
 						System.out.println("LEAVE ROOM");
 						leaveRoom();
+					} else if (control.equalsIgnoreCase("END")) {
+						isChecking = false;
+					}
+					
+					if (isChecking) {					
+						sendEndSignal();
 					}
 				} else {
 					control = line.substring(0, 4);
@@ -272,7 +298,7 @@ public class ClientThread extends Thread {
 					}
 				}
 			} catch (IOException e) {
-				e.printStackTrace();
+				//e.printStackTrace();
 				break;
 			}
 		}
@@ -280,8 +306,7 @@ public class ClientThread extends Thread {
 		try {
 			socket.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			//e.printStackTrace();
 		}
 		
 		System.out.println("Done client thread");

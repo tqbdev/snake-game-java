@@ -11,7 +11,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import com.tqbdev.snake_core.Direction;
 import com.tqbdev.snake_core.EndGameState;
 
-public class ClientThread extends Thread { // Add inRoomListener, inGameListener
+public class ClientThread extends Thread {
 	private boolean isInRoom;
 	private boolean isHost;
 
@@ -42,6 +42,12 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 
 		for (ConnectListener connectListener : connectListeners) {
 			connectListener.JoinRoomRespone(respone, isOK);
+		}
+	}
+
+	private final void UpdateAmount(int amount) {
+		for (ConnectListener connectListener : connectListeners) {
+			connectListener.UpdateAmount(amount);
 		}
 	}
 	//
@@ -120,6 +126,24 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 	private final void ConnectionDone() {
 		for (DoneListener doneListener : doneListeners) {
 			doneListener.ConnectionDone(this);
+		}
+	}
+	//
+	
+	// CountDown Listener
+	private final Set<CountDownListener> countDownListeners = new CopyOnWriteArraySet<CountDownListener>();
+	
+	public final void addCountDownListener(CountDownListener listener) {
+		countDownListeners.add(listener);
+	}
+	
+	public final void removeCountDownListener(CountDownListener listener) {
+		countDownListeners.remove(listener);
+	}
+	
+	public final void countUpdate(int value) {
+		for (CountDownListener countDownListener : countDownListeners) {
+			countDownListener.updateValue(value);
 		}
 	}
 	//
@@ -207,6 +231,10 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 	public void setHost(boolean isHost) {
 		this.isHost = isHost;
 	}
+	
+	public void sendEndCheck() {
+		send("END\r\n");
+	}
 
 	public void run() {
 		BufferedReader in = null;
@@ -230,7 +258,7 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 
 			try {
 				// if not playing
-				Thread.sleep(20);
+				Thread.sleep(30);
 				// else sleep 10
 			} catch (InterruptedException e) {
 				e.printStackTrace();
@@ -245,9 +273,16 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 			}
 
 			if (line != null && line.length() > 0) {
-				if (isInRoom) {
-					String control = line.substring(0, 3);
+				//System.out.println(line);
 
+				if (isInRoom) {
+					String control = null;
+					try {
+						control = line.substring(0, 3);
+					} catch (Exception e) {
+						continue;
+					}
+					
 					if (control.equalsIgnoreCase("INF")) {
 						String numStr = line.substring(3);
 
@@ -267,7 +302,7 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 						updateBoard(boardStr);
 					} else if (control.equalsIgnoreCase("BEG")) {
 						beginGame();
-					} else if (control.equalsIgnoreCase("END")) {
+					} else if (control.equalsIgnoreCase("END")) {						
 						char stateEnd = line.charAt(3);
 						String pointStr = line.substring(4);
 
@@ -286,24 +321,52 @@ public class ClientThread extends Thread { // Add inRoomListener, inGameListener
 							endGameState = EndGameState.Collision;
 							break;
 						}
-						
+
 						int point = 0;
 						try {
 							point = Integer.parseInt(pointStr);
 						} catch (NumberFormatException e) {
 							point = 0;
 						}
-						
+
 						endGame(endGameState, point);
 					} else if (control.equalsIgnoreCase("POI")) {
 						String pointStr = line.substring(3);
 
 						updatePoint(pointStr);
+					} else if (control.equalsIgnoreCase("COU")) {
+						//System.out.println(line);
+						String valueStr = line.substring(3);
+						
+						int value = 10;
+						try {
+							value = Integer.parseInt(valueStr);
+						} catch (NumberFormatException e) {
+							value = 10;
+						}
+						
+						countUpdate(value);
 					}
 				} else {
-					String control = line.substring(0, 4);
+					String control = null;
+					try {
+						control = line.substring(0, 4);
+					} catch (Exception e) {
+						continue;
+					}
+					
+					if (control.equalsIgnoreCase("CONE")) {
+						String amountStr = line.substring(4);
 
-					if (control.equalsIgnoreCase("CREA")) {
+						int amount = 0;
+						try {
+							amount = Integer.parseInt(amountStr);
+						} catch (NumberFormatException e) {
+							amount = 0;
+						}
+
+						UpdateAmount(amount);
+					} else if (control.equalsIgnoreCase("CREA")) {
 						String check = line.substring(4, 5);
 						boolean isOK = false;
 						if (check.equals("1")) {

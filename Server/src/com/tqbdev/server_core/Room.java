@@ -13,6 +13,7 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 	private Game game = null;
 	private boolean isPlaying = false;
 	private boolean isBeginPlaying = false;
+	private int countDown = 10;
 	private boolean endRoom = false;
 
 	// Room Listener
@@ -101,6 +102,20 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 		}
 	}
 
+	private void sendCountDown() {
+		String send = "COU";
+		send += countDown;
+		send += "\r\n";
+
+		for (int i = 0; i < clientThreads.length; i++) {
+			ClientThread clientThread = clientThreads[i];
+
+			if (clientThread != null) {
+				clientThread.send(send);
+			}
+		}
+	}
+
 	public void run() {
 		while (endRoom == false) {
 			if (isPlaying == false) {
@@ -108,27 +123,33 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 				try {
 					Thread.sleep(3000);
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					//e.printStackTrace();
 				}
 			} else {
 				if (isBeginPlaying) {
 					isBeginPlaying = false;
 
 					sendBeginSignal();
-					try {
-						Thread.sleep(5000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
 				}
 
-				game.move();
-				game.sendBoard();
+				if (countDown > 0) {
+					sendCountDown();
+					countDown--;
 
-				try {
-					Thread.sleep(game.getDelay());
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						//e.printStackTrace();
+					}
+				} else {
+					game.move();
+					game.sendBoard();
+
+					try {
+						Thread.sleep(game.getDelay());
+					} catch (InterruptedException e) {
+						//e.printStackTrace();
+					}
 				}
 			}
 		}
@@ -136,19 +157,24 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 
 	@Override
 	public void startGame() {
-		game.setPlayerThreads(clientThreads);
-		game.newGame();
-		isPlaying = true;
-		isBeginPlaying = true;
-		this.interrupt();
+		if (isPlaying == false) {
+			game.setPlayerThreads(clientThreads);
+			game.newGame();
+			isPlaying = true;
+			isBeginPlaying = true;
+			countDown = 10;
+			this.interrupt();
+		}
 	}
 
 	@Override
 	public void stopGame() {
-		isPlaying = false;
-		isBeginPlaying = false;
-		this.interrupt();
-		game.hostEndGame();
+		if (isPlaying) {
+			isPlaying = false;
+			isBeginPlaying = false;
+			// this.interrupt();
+			game.hostEndGame();
+		}
 	}
 
 	@Override
@@ -159,14 +185,27 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 	}
 
 	@Override
-	public void threadComplete(ClientThread thread) {
+	public synchronized void threadComplete(ClientThread thread) {
+		//System.out.println("TEST");
 		removePlayer(thread);
+	}
+
+	public boolean isFull() {
+		for (int i = 0; i < clientThreads.length; i++) {
+			if (clientThreads[i] == null) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private void removePlayer(ClientThread thread) {
 		if (isPlaying && thread.isSnakeDead() == false) {
 			isPlaying = false;
+			isBeginPlaying = false;
 
+			this.interrupt();
 			game.playerLeaveGame();
 		}
 
@@ -182,18 +221,20 @@ public class Room extends Thread implements HostListener, DoneListener, GameList
 			// Find thread
 			int i = 0;
 			for (; i < clientThreads.length; i++) {
-				if (clientThreads[i].equals(thread)) {
+				if (clientThreads[i] != null && clientThreads[i].equals(thread)) {
 					break;
 				}
 			}
+			if (i < 4) {
 
-			clientThreads[i] = null;
+				clientThreads[i] = null;
 
-			for (; i < clientThreads.length - 1; i++) {
-				clientThreads[i] = clientThreads[i + 1];
+				for (; i < clientThreads.length - 1; i++) {
+					clientThreads[i] = clientThreads[i + 1];
+				}
+
+				clientThreads[clientThreads.length - 1] = null;
 			}
-
-			clientThreads[clientThreads.length - 1] = null;
 		}
 
 		if (clientThreads[0] == null) {
