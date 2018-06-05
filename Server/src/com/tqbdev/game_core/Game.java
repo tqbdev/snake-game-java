@@ -100,7 +100,7 @@ public class Game implements SnakeListener {
 		for (int i = 0; i < clientThreads.length; i++) {
 			ClientThread clientThread = clientThreads[i];
 
-			if (clientThread != null && clientThread.isSnakeDead() == false) {
+			if (clientThread != null) {
 				String end = "END2";
 
 				Snake snake = snakes[i];
@@ -112,7 +112,9 @@ public class Game implements SnakeListener {
 
 				end += "\r\n";
 
-				clientThread.send(end);
+				clientThread.setEndStr(end);
+				clientThread.sendEndSignal();
+				//clientThread.send(end);
 			}
 		}
 	}
@@ -121,7 +123,7 @@ public class Game implements SnakeListener {
 		for (int i = 0; i < clientThreads.length; i++) {
 			ClientThread clientThread = clientThreads[i];
 
-			if (clientThread != null && clientThread.isSnakeDead() == false) {
+			if (clientThread != null) {
 				String end = "END1";
 
 				Snake snake = snakes[i];
@@ -130,8 +132,12 @@ public class Game implements SnakeListener {
 				} else {
 					end += '0';
 				}
+				
+				end += "\r\n";
 
-				clientThread.send(end);
+				clientThread.setEndStr(end);
+				clientThread.sendEndSignal();
+				//clientThread.send(end);
 			}
 		}
 	}
@@ -174,7 +180,7 @@ public class Game implements SnakeListener {
 			for (int i = 0; i < clientThreads.length; i++) {
 				ClientThread clientThread = clientThreads[i];
 
-				if (clientThread != null && clientThread.isSnakeDead() == false) {
+				if (clientThread != null) {
 					String end = "END0";
 
 					Snake snake = snakes[i];
@@ -185,8 +191,10 @@ public class Game implements SnakeListener {
 					}
 
 					end += "\r\n";
-
-					clientThread.send(end);
+					
+					clientThread.setEndStr(end);
+					clientThread.sendEndSignal();
+					//clientThread.send(end);
 				}
 			}
 			endGame();
@@ -205,8 +213,11 @@ public class Game implements SnakeListener {
 		// clientThreads[snakePlayer.ordinal()] = null;
 
 		// Send end signal
-		String str = "END" + 3 + snake.getPoint() + "\r\n";
-		clientThread.send(str);
+		String end = "END" + 3 + snake.getPoint() + "\r\n";
+		
+		clientThread.setEndStr(end);
+		clientThread.sendEndSignal();
+		//clientThread.send(end);
 	}
 
 	private int fps = 20;

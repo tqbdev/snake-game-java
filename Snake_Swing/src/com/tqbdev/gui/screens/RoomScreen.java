@@ -6,6 +6,8 @@ import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 
 import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
@@ -32,7 +34,7 @@ import com.tqbdev.snake_core.Direction;
 import com.tqbdev.snake_core.EndGameState;
 import com.tqbdev.snake_core.StateCell;
 
-public class RoomScreen extends JFrame implements ActionListener, RoomListener, GameListener, DoneListener {
+public class RoomScreen extends JFrame implements ActionListener, RoomListener, GameListener, DoneListener, WindowListener {
 
 	/**
 	 * 
@@ -55,8 +57,10 @@ public class RoomScreen extends JFrame implements ActionListener, RoomListener, 
 	private StateCell[][] boardGame;
 
 	private WaitDialog waitDialog;
+	private EndGameDialog endGameDialog;
 
-	private static final String[] snakePlayerStrs = {"Snake 1 (Blue):", "Snake 2 (Green):", "Snake 3 (White):", "Snake 4 (Yellow):"};
+	private static final String[] snakePlayerStrs = { "Snake 1 (Blue):", "Snake 2 (Green):", "Snake 3 (White):",
+			"Snake 4 (Yellow):" };
 
 	/**
 	 * Create the frame.
@@ -137,11 +141,11 @@ public class RoomScreen extends JFrame implements ActionListener, RoomListener, 
 		jPanel.add(new JLabel("Auto update 3s"));
 
 		jPanel.add(Box.createVerticalGlue());
-		
+
 		JLabel pointIns = new JLabel("Point of snakes:");
 		pointIns.setFont(new Font("TimesRoman", Font.BOLD, 16));
 		jPanel.add(pointIns);
-		
+
 		Font fontPlain = new Font("TimesRoman", Font.PLAIN, 14);
 		Font fontBold = new Font("TimesRoman", Font.BOLD, 14);
 		pointInses = new JLabel[4];
@@ -150,15 +154,15 @@ public class RoomScreen extends JFrame implements ActionListener, RoomListener, 
 			pointIns = new JLabel(snakePlayerStrs[i]);
 			pointIns.setFont(fontPlain);
 			pointInses[i] = pointIns;
-			
+
 			JLabel point = new JLabel("0");
 			point.setFont(fontBold);
 			pointLabels[i] = point;
-			
+
 			jPanel.add(pointIns);
 			jPanel.add(point);
 		}
-		
+
 		jPanel.add(Box.createVerticalGlue());
 
 		Font btnFont = new Font("TimesRoman", Font.PLAIN, 14);
@@ -205,32 +209,32 @@ public class RoomScreen extends JFrame implements ActionListener, RoomListener, 
 				ConnectedScreen connectedScreen = (ConnectedScreen) previousJFrame;
 				this.clientThread.addDoneListener(connectedScreen);
 				this.clientThread.removeDoneListener(this);
-				
+
 				this.dispose();
 			}
 		}
 	}
 
 	@Override
-	public void changeHost() {
+	public synchronized void changeHost() {
 		clientThread.setHost(true);
 		newGameBtn.setEnabled(clientThread.isHost());
 		stopGameBtn.setEnabled(clientThread.isHost());
 
 		Dialog.showInform(this, "Now, you is host of this room", "Notice...");
 	}
-	
+
 	@Override
-	public void updateRoom(int numberOfPlayers) {
+	public synchronized void updateRoom(int numberOfPlayers) {
 		if (amountInRoomLabel != null) {
 			amountInRoomLabel.setText("Now room have " + numberOfPlayers + "/4 player.");
 		}
-		
+
 		for (int i = 0; i < numberOfPlayers; i++) {
 			pointInses[i].setVisible(true);
 			pointLabels[i].setVisible(true);
 		}
-		
+
 		for (int i = numberOfPlayers; i < 4; i++) {
 			pointInses[i].setVisible(false);
 			pointLabels[i].setVisible(false);
@@ -238,73 +242,84 @@ public class RoomScreen extends JFrame implements ActionListener, RoomListener, 
 	}
 
 	@Override
-	public void updateBoard(String boardStr) {
+	public synchronized void updateBoard(String boardStr) {
 		if (waitDialog != null) {
 			waitDialog.dispose();
+			clientThread.removeCountDownListener(waitDialog);
 			waitDialog = null;
 		}
 		Thread t = new Thread(new Runnable() {
 
 			@Override
 			public void run() {
-				char[] tmp = boardStr.toCharArray();
+				try {
+					char[] tmp = boardStr.toCharArray();
 
-				for (int i = 0; i < tmp.length; i++) {
+					for (int i = 0; i < tmp.length; i++) {
 
-					StateCell cell = StateCell.values()[tmp[i] - '0'];
+						StateCell cell = StateCell.values()[tmp[i] - '0'];
 
-					int t = i % 60;
-					int k = i / 60;
-					boardGame[k][t] = cell;
+						int t = i % 60;
+						int k = i / 60;
+						boardGame[k][t] = cell;
+					}
+					gameCanvas.repaint();
+				} catch (Exception e) {
+					e.printStackTrace();
 				}
-				gameCanvas.repaint();
 			}
 		});
 		t.start();
 	}
 
 	@Override
-	public void beginGame() {
-		String mess = "Game start in 5 seconds.";
-		waitDialog = new WaitDialog(this, mess);
+	public synchronized void beginGame() {
+		waitDialog = new WaitDialog(this);
+		clientThread.addCountDownListener(waitDialog);
 	}
 
 	@Override
-	public void endGame(EndGameState endGameState, int point) {
-		String message = "";
-		
-		switch (endGameState) {
-		case FullMap:
-			message = "Game end because full board.";
-			break;
-		case PlayerLeave:
-			message = "Game end because one player leave room.";
-			break;
-		case HostEnd:
-			message = "Game end because room's host end game.";
-			break;
-		case Collision:
-			message = "Game end because your snake have a collision.";
-			break;
+	public synchronized void endGame(EndGameState endGameState, int point) {
+		// System.out.println("TEST");
+		if (endGameDialog == null) {
+			String message = "";
+
+			switch (endGameState) {
+			case FullMap:
+				message = "Game end because full board.";
+				break;
+			case PlayerLeave:
+				message = "Game end because one player leave room.";
+				break;
+			case HostEnd:
+				message = "Game end because room's host end game.";
+				break;
+			case Collision:
+				message = "Game end because your snake have a collision.";
+				break;
+			}
+
+			endGameDialog = new EndGameDialog(this, message, point);
+			endGameDialog.addWindowListener(this);
 		}
 		
-		new EndGameDialog(this, message, point);
+		clientThread.sendEndCheck();
 	}
-	
+
 	@Override
-	public void updatePoint(String pointStr) {
+	public synchronized void updatePoint(String pointStr) {
 		int numberOfPlayers = pointStr.length() / 5;
-		
+
 		for (int i = 0; i < numberOfPlayers; i++) {
-			char isAlive = pointStr.charAt(0 + i*5);
-			int point = Integer.parseInt(pointStr.substring(1 + i*5, 5 + i*5));
-			
+			char isAlive = pointStr.charAt(0 + i * 5);
+			int point = Integer.parseInt(pointStr.substring(1 + i * 5, 5 + i * 5));
+
 			String alive = "";
 			if (isAlive == '0') {
 				alive = " (is dead)";
 			}
 			pointLabels[i].setText(point + alive);
-			//System.out.println(i + " - " + isAlive + " - " + point);
+			// System.out.println(i + " - " + isAlive + " - " + point);
 		}
 	}
 
@@ -328,14 +343,61 @@ public class RoomScreen extends JFrame implements ActionListener, RoomListener, 
 	@Override
 	public void ConnectionDone(ClientThread clientThread) {
 		Dialog.showErrorMessage(this, "Server is disconnect", "Error...");
-		
+
 		this.setVisible(false);
-		
-		ConnectedScreen connectedScreen = (ConnectedScreen) previousJFrame;		
-		
+
+		ConnectedScreen connectedScreen = (ConnectedScreen) previousJFrame;
+
 		connectedScreen.getPreviousJFrame().setVisible(true);
-		
+
 		connectedScreen.dispose();
 		this.dispose();
+	}
+
+	@Override
+	public void windowActivated(WindowEvent e) {		
+	}
+
+	@Override
+	public void windowClosed(WindowEvent e) {
+	}
+
+	@Override
+	public void windowClosing(WindowEvent e) {
+		if (endGameDialog != null && e.getSource().equals(endGameDialog)) {
+			endGameDialog = null;
+		}				
+		
+		if (endGameDialog != null && e.getSource().equals(this)) {
+			endGameDialog.dispose();
+		}		
+		
+		if (waitDialog != null && e.getSource().equals(this)) {
+			waitDialog.dispose();
+		}
+	}
+
+	@Override
+	public void windowDeactivated(WindowEvent e) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowDeiconified(WindowEvent e) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowIconified(WindowEvent e) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowOpened(WindowEvent e) {
+		// TODO Auto-generated method stub
+		
 	}
 }

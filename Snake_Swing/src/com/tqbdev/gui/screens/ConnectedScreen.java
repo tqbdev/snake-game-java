@@ -1,9 +1,12 @@
 package com.tqbdev.gui.screens;
 
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
+import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -29,6 +32,8 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 	
 	private JFrame previousJFrame;
 	private ClientThread clientThread;
+	
+	private JLabel numberOfConnectedLabel; 
 
 	/**
 	 * Create the frame.
@@ -42,10 +47,21 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		setTitle("Registration...");
 		
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setBounds(100, 100, 450, 300);
+		setBounds(100, 100, 450, 150);
+		setResizable(false);
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 		contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
+		
+		numberOfConnectedLabel = new JLabel("Now server have 1 client(s) connected");
+		numberOfConnectedLabel.setFont(new Font("TimesRoman", Font.PLAIN, 16));
+		numberOfConnectedLabel.setForeground(Color.BLUE);
+		numberOfConnectedLabel.setAlignmentX(CENTER_ALIGNMENT);
+		
+		contentPane.add(numberOfConnectedLabel);
+		contentPane.add(new JLabel("Auto update 3s"));
+		
+		contentPane.add(Box.createVerticalGlue());
 		
 		contentPane.add(initButtons());
 		
@@ -110,6 +126,7 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		        clientThread.joinRoom(roomCode);
 		    }
 		} else if (actionCommand.equals("QUIT")) {
+			clientThread.removeDoneListener(this);
 			clientThread.quit();
 			this.setVisible(false);
 			previousJFrame.setVisible(true);
@@ -150,6 +167,13 @@ public class ConnectedScreen extends JFrame implements ActionListener, ConnectLi
 		this.setVisible(false);
 		previousJFrame.setVisible(true);
 		this.dispose();		
+	}
+
+	@Override
+	public void UpdateAmount(int amount) {
+		if (numberOfConnectedLabel != null) {
+			numberOfConnectedLabel.setText("Now server have " + amount + " client(s) connected");
+		}
 	}
 
 }

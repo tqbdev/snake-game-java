@@ -42,6 +42,7 @@ public class EndGameDialog extends JDialog {
 		getContentPane().add(contentPanel, BorderLayout.CENTER);
 		
 		setVisible(true);
+		setResizable(false);
 		pack();
 	}
 }
